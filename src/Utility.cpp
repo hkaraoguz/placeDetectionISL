@@ -33,6 +33,8 @@ void Place::calculateMeanInvariant()
 
     }
 
+    this->memberInvariants = wholeInvariants.clone();
+
    // Mat avg;
 
     cv::reduce(wholeInvariants,this->meanInvariant,1,CV_REDUCE_AVG);

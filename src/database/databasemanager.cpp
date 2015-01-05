@@ -10,7 +10,7 @@
 //static QSqlDatabase bubbledb;
 //static QSqlDatabase invariantdb;
 
-static QSqlDatabase db;
+//static QSqlDatabase db;
 static QVector<int> placeLabels;
 
 DatabaseManager::DatabaseManager(QObject *parent) :
@@ -523,15 +523,18 @@ bool DatabaseManager::insertPlace(const Place &place)
 
     QByteArray arr2 = mat2ByteArray(place.memberIds);
 
+    QByteArray arr3 = mat2ByteArray(place.memberInvariants);
+
     if(db.isOpen())
     {
         QSqlQuery query;
 
-         query.prepare(QString("replace into place values(?, ?, ?)"));
+         query.prepare(QString("replace into place values(?, ?, ?, ?)"));
 
          query.addBindValue(place.id);
          query.addBindValue(arr);
          query.addBindValue(arr2);
+         query.addBindValue(arr3);
 
         bool ret = query.exec();
 
@@ -564,7 +567,7 @@ cv::Mat DatabaseManager::getPlaceMemberIds(int id)
 {
     if(db.isOpen())
     {
-        QSqlQuery query(QString("select members from place where id = %1").arg(id));
+        QSqlQuery query(QString("select memberIds from place where id = %1").arg(id));
 
         query.next();
 
@@ -594,6 +597,8 @@ Place DatabaseManager::getPlace(int id)
         place.meanInvariant = DatabaseManager::byteArray2Mat(array);
         QByteArray array2 = query.value(2).toByteArray();
         place.memberIds = DatabaseManager::byteArray2Mat(array2);
+        QByteArray array3 = query.value(3).toByteArray();
+        place.memberInvariants = DatabaseManager::byteArray2Mat(array3);
 
         //qDebug()<<meanInv.rows<<members.rows;
 

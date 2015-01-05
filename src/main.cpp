@@ -17,6 +17,8 @@ namespace enc = sensor_msgs::image_encodings;
 
 double compareHistHK( InputArray _H1, InputArray _H2, int method );
 
+double compareHKCHISQR(cv::Mat input1, cv::Mat input2);
+
 
 // TODO Temporal Window ve basepointleri DB ye kaydedecegiz
 
@@ -44,6 +46,7 @@ TemporalWindow::TemporalWindow()
 
 ros::Timer timer;
 PlaceDetector detector;
+DatabaseManager dbmanager;
 
 void timerCallback(const ros::TimerEvent& event)
 {
@@ -73,6 +76,53 @@ void imageCallback(const sensor_msgs::ImageConstPtr& original_image)
 
 }
 
+double compareHKCHISQR(Mat input1, Mat input2)
+{
+    double res = -1;
+
+    if(input1.rows != input2.rows)
+    {
+        qDebug()<<"Comparison failed due to col size mismatch";
+        return res;
+    }
+    double summ  = 0;
+    for(int i = 0; i < input1.rows; i++)
+    {
+        float in1 = input1.at<float>(i,0);
+        float in2 = input2.at<float>(i,0);
+
+        double mul = (in1-in2)*(in1-in2);
+
+        double ss =  in1+in2;
+        summ += mul/ss;
+        qDebug()<<i<<mul<<ss<<summ;
+
+    }
+
+    return summ;
+}
+
+void writeInvariant(cv::Mat inv, int count)
+{
+    QString pathh = QDir::homePath();
+    pathh.append("/invariants_").append(QString::number(count)).append(".txt");
+    QFile file(pathh);
+
+    if(file.open(QFile::WriteOnly))
+    {
+        QTextStream str(&file);
+
+        for(int i = 0; i < inv.rows; i++)
+        {
+            str<<inv.at<float>(i,0)<<"\n";
+
+        }
+
+        file.close();
+    }
+
+}
+
 int main (int argc, char** argv)
 {
     // Initialize ROS
@@ -84,6 +134,7 @@ int main (int argc, char** argv)
 
     detector.tau_w = 1;
     detector.tau_n = 1;
+    detector.tau_p = 20;
     std::string camera_topic = "";
     int img_width = 640;
     int img_height = 480;
@@ -100,6 +151,7 @@ int main (int argc, char** argv)
 
     pnh.getParam("tau_w",detector.tau_w);
     pnh.getParam("tau_n",detector.tau_n);
+    pnh.getParam("tau_p",detector.tau_p);
     pnh.getParam("tau_inv",detector.tau_inv);
     pnh.getParam("camera_topic",camera_topic);
     pnh.getParam("image_width",img_width);
@@ -109,7 +161,7 @@ int main (int argc, char** argv)
     pnh.getParam("tau_val_var",detector.tau_val_var);
 
 
-    DatabaseManager::openDB("/home/hakan/Development/ISL/Datasets/Own/deneme/db1.db");
+   // dbmanager.openDB("/home/hakan/Development/ISL/Datasets/Own/deneme/db1.db");
 
     /*Place place = DatabaseManager::getPlace(1);
 
@@ -192,7 +244,7 @@ int main (int argc, char** argv)
 
     ros::Rate loop(50);
 
-    for(int i = 1; i <= 3200; i++)
+    for(int i = 951; i <= 952; i++)
     {
 
         QString path("/home/hakan/Development/ISL/Datasets/Own/jaguar/tour1/");
@@ -203,7 +255,23 @@ int main (int argc, char** argv)
         detector.shouldProcess = true;
         detector.processImage();
 
+
     }
+
+    qDebug()<<"New Place";
+    detector.currentPlace->calculateMeanInvariant();
+
+    // qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
+
+    if(detector.currentPlace->memberIds.rows >= detector.tau_p){
+        dbmanager.insertPlace(*detector.currentPlace);
+        detector.detectedPlaces.push_back(*detector.currentPlace);
+        detector.placeID++;
+    }
+
+
+    delete detector.currentPlace;
+    detector.currentPlace = 0;
 
 
     //timer.start();
@@ -236,7 +304,7 @@ int main (int argc, char** argv)
 
     //  timer.stop();
 
-    DatabaseManager::closeDB();
+    dbmanager.closeDB();
 
     ros::shutdown();
     return 0;
@@ -331,7 +399,7 @@ void PlaceDetector::processImage()
             }
 
 
-            DatabaseManager::insertBasePoint(currentBasePoint);
+            dbmanager.insertBasePoint(currentBasePoint);
             //  previousBasePoint = currentBasePoint;
 
             image_counter++;
@@ -378,6 +446,8 @@ void PlaceDetector::processImage()
 
             }
 
+            // TOTAL INVARIANTS 1 X N vector
+
             //  qDebug()<<totalInvariants.at<float>(0,64);
 
             cv::log(totalInvariants,logTotal);
@@ -398,7 +468,7 @@ void PlaceDetector::processImage()
 
                 currentPlace->members.push_back(currentBasePoint);
 
-                DatabaseManager::insertBasePoint(currentBasePoint);
+                dbmanager.insertBasePoint(currentBasePoint);
 
             }
             else
@@ -409,14 +479,18 @@ void PlaceDetector::processImage()
 
                 double result = compareHistHK(currentBasePoint.invariants,previousBasePoint.invariants, CV_COMP_CHISQR);
 
-                qDebug()<<"Invariant diff between "<<currentBasePoint.id<<previousBasePoint.id<<"is"<<result<<previousBasePoint.invariants.rows<<currentBasePoint.invariants.rows;
+                double result2= compareHKCHISQR(currentBasePoint.invariants,previousBasePoint.invariants);
 
+                qDebug()<<"Invariant diff between "<<currentBasePoint.id<<previousBasePoint.id<<"is"<<result<<result2;//previousBasePoint.invariants.rows<<currentBasePoint.invariants.rows;
 
+                qDebug()<<currentBasePoint.invariants.at<float>(1,0)<<currentBasePoint.invariants.at<float>(2,0)<<previousBasePoint.invariants.at<float>(1,0)<<previousBasePoint.invariants.at<float>(2,0);
+
+                writeInvariant(previousBasePoint.invariants,previousBasePoint.id);
                 ///////////////////////////// IF THE FRAMES ARE COHERENT ///////////////////////////////////////////////////////////////////////////////////////////////////////
                 if(result <= tau_inv)
                 {
 
-                    DatabaseManager::insertBasePoint(currentBasePoint);
+                    dbmanager.insertBasePoint(currentBasePoint);
 
                     /// If we have a temporal window
                     if(tempwin)
@@ -444,14 +518,18 @@ void PlaceDetector::processImage()
 
                                 qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
 
-                                DatabaseManager::insertPlace(*currentPlace);
+                                if(currentPlace->memberIds.rows >= tau_p){
+                                    dbmanager.insertPlace(*currentPlace);
+                                    this->detectedPlaces.push_back(*currentPlace);
+                                    this->placeID++;
+                                }
 
-                                this->detectedPlaces.push_back(*currentPlace);
+
                                 delete currentPlace;
                                 currentPlace = 0;
-                                this->placeID++;
+                                // this->placeID++;
 
-                                cv::Mat result = DatabaseManager::getPlaceMeanInvariant(this->placeID-1);
+                                /*    cv::Mat result = DatabaseManager::getPlaceMeanInvariant(this->placeID-1);
 
                                 qDebug()<<"Previous place mean invariant: "<<result.rows<<result.cols<<result.at<float>(50,0);
 
@@ -460,7 +538,7 @@ void PlaceDetector::processImage()
                                 for(int k = 0; k< result.rows; k++){
 
                                     qDebug()<<"Previous place members: "<<result.rows<<result.cols<<result.at<unsigned short>(k,0);
-                                }
+                                }*/
 
                                 currentPlace = new Place(this->placeID);
 
@@ -472,7 +550,7 @@ void PlaceDetector::processImage()
                                 currentPlace->members = basepointReservoir;
                                 basepointReservoir.clear();
 
-                                DatabaseManager::insertTemporalWindow(*tempwin);
+                                dbmanager.insertTemporalWindow(*tempwin);
 
                                 delete tempwin;
                                 tempwin = 0;
@@ -524,7 +602,7 @@ void PlaceDetector::processImage()
                 else
                 {
                     currentBasePoint.status = 2;
-                    DatabaseManager::insertBasePoint(currentBasePoint);
+                    dbmanager.insertBasePoint(currentBasePoint);
                     // If we don't have a temporal window create one
                     if(!tempwin)
                     {
@@ -563,23 +641,27 @@ void PlaceDetector::processImage()
 
                                 qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
 
-                                DatabaseManager::insertPlace(*currentPlace);
+                                if(currentPlace->memberIds.rows >= tau_p){
+                                    dbmanager.insertPlace(*currentPlace);
+                                    this->detectedPlaces.push_back(*currentPlace);
+                                    this->placeID++;
+                                }
 
-                                this->detectedPlaces.push_back(*currentPlace);
+
                                 delete currentPlace;
                                 currentPlace = 0;
-                                this->placeID++;
+                                // this->placeID++;
 
-                                cv::Mat result = DatabaseManager::getPlaceMeanInvariant(this->placeID-1);
+                                //  cv::Mat result = DatabaseManager::getPlaceMeanInvariant(this->placeID-1);
 
-                              //  qDebug()<<"Previous place mean invariant: "<<result.rows<<result.cols<<result.at<float>(50,0);
+                                //  qDebug()<<"Previous place mean invariant: "<<result.rows<<result.cols<<result.at<float>(50,0);
 
-                                result = DatabaseManager::getPlaceMemberIds(this->placeID-1);
+                                //  result = DatabaseManager::getPlaceMemberIds(this->placeID-1);
 
-                                for(int k = 0; k< result.rows; k++){
+                                /*    for(int k = 0; k< result.rows; k++){
 
                                     qDebug()<<"Previous place members: "<<result.rows<<result.cols<<result.at<unsigned short>(k,0);
-                                }
+                                }*/
 
                                 currentPlace = new Place(this->placeID);
 
@@ -591,7 +673,7 @@ void PlaceDetector::processImage()
                                 currentPlace->members = basepointReservoir;
                                 basepointReservoir.clear();
 
-                                DatabaseManager::insertTemporalWindow(*tempwin);
+                                dbmanager.insertTemporalWindow(*tempwin);
 
                                 delete tempwin;
                                 tempwin = 0;
@@ -605,7 +687,7 @@ void PlaceDetector::processImage()
                             // This is just a noisy temporal window. We should add the coherent basepoints to the current place
                             else
                             {
-                              //  basepointReservoir.push_back(currentBasePoint);
+                                //  basepointReservoir.push_back(currentBasePoint);
 
                                 delete tempwin;
                                 tempwin = 0;

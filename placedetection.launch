@@ -4,6 +4,7 @@
 <node name="placeDetectionNode" pkg="placeDetectionISL" type="placeDetectionNode" output="screen" >
 	<param name="tau_w" type="int" value="3" />
 	<param name="tau_n" type="int" value="5" />
+	<param name="tau_p" type="int" value="20" />
         <param name="tau_inv" type="double" value="0.56" />
 	<param name="camera_topic" type="string" value="/axis/image_raw" />
 	<param name="image_width" type="int" value="640" />

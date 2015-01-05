@@ -28,52 +28,52 @@ public:
     explicit DatabaseManager(QObject *parent = 0);
   //  ~DatabaseManager();
 
-   static bool openDB(QString filePath);
+    bool openDB(QString filePath);
 
-   static void closeDB();
+    void closeDB();
 
-   static bool deleteDB();
+    bool deleteDB();
 
-   static bool isOpen();
+   bool isOpen();
 
     // Type = 55:Lazer, 56:Hue, XX:Filter_Number, Number: the current bubble number-> obtained from frame number
-   static bool insertRowtoBubble(int type, int number, bubblePoint row);
+  bool insertRowtoBubble(int type, int number, bubblePoint row);
 
-   static bool insertRowtoBubble(int type, int number, int pan, int tilt, double val);
+    bool insertRowtoBubble(int type, int number, int pan, int tilt, double val);
 
-   static bool insertBubble(int type,int number, std::vector<bubblePoint> bubble);
+    bool insertBubble(int type,int number, std::vector<bubblePoint> bubble);
 
-   static bool insertInvariants(int type,int number, std::vector< std::vector<float> > invariants);
+    bool insertInvariants(int type,int number, std::vector< std::vector<float> > invariants);
 
-   static bool insertBubbleStatistics(int type, int number, bubbleStatistics stats);
+    bool insertBubbleStatistics(int type, int number, bubbleStatistics stats);
 
-   static std::vector<bubblePoint> readBubble(int type, int number);
+    std::vector<bubblePoint> readBubble(int type, int number);
 
-   static void determinePlaceLabels(QString filePath);
+    void determinePlaceLabels(QString filePath);
 
-   static bool insertTemporalWindow(const TemporalWindow& twindow);
+    bool insertTemporalWindow(const TemporalWindow& twindow);
 
-   static bool insertBasePoint(const BasePoint& basepoint);
-
-
+    bool insertBasePoint(const BasePoint& basepoint);
 
 
-   static bool insertPlace(const Place& place);
 
-   static cv::Mat getPlaceMeanInvariant(int id);
 
-   static Place getPlace(int id);
+    bool insertPlace(const Place& place);
 
-   static cv::Mat getPlaceMemberIds(int id);
+   cv::Mat getPlaceMeanInvariant(int id);
 
-   static QByteArray mat2ByteArray(const cv::Mat &image);
+    Place getPlace(int id);
 
-   static cv::Mat byteArray2Mat(const QByteArray & byteArray);
+    cv::Mat getPlaceMemberIds(int id);
+
+    QByteArray mat2ByteArray(const cv::Mat &image);
+
+    cv::Mat byteArray2Mat(const QByteArray & byteArray);
 
    QSqlError lastError();
 
 private:
- //  QSqlDatabase db;
+  QSqlDatabase db;
 
     
 signals:

@@ -32,6 +32,7 @@ public:
     uint id;
     cv::Mat memberIds;
     std::vector<BasePoint> members;
+    Mat memberInvariants;
     Mat meanInvariant;
     void calculateMeanInvariant();
 
@@ -91,6 +92,10 @@ public:
     uint image_counter;
     int  twindow_counter;
 
+    Place* currentPlace;
+    vector<Place> detectedPlaces;
+    uint placeID;
+
 private:
 
     TemporalWindow* tempwin;
@@ -98,9 +103,9 @@ private:
     BasePoint previousBasePoint;
     BasePoint currentBasePoint;
     std::vector<BasePoint> basepointReservoir;
-    uint placeID;
-    vector<Place> detectedPlaces;
-    Place* currentPlace;
+
+
+
 
 
 

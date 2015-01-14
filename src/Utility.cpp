@@ -35,7 +35,7 @@ void Place::calculateMeanInvariant()
 
     this->memberInvariants = wholeInvariants.clone();
 
-   // Mat avg;
+    // Mat avg;
 
     cv::reduce(wholeInvariants,this->meanInvariant,1,CV_REDUCE_AVG);
 
@@ -47,7 +47,32 @@ void Place::calculateMeanInvariant()
 
     }
 
-   // this->meanInvariant = avg;
+    // this->meanInvariant = avg;
+
+
+
+
+}
+
+LearnedPlace::LearnedPlace()
+{
+    id = -1;
+
+}
+
+LearnedPlace::LearnedPlace(int id)
+{
+    this->id = id;
+    this->memberIds = cv::Mat::zeros(1,1,CV_16UC1);
+
+}
+void LearnedPlace::calculateMeanInvariant()
+{
+   // this->memberInvariants = wholeInvariants.clone();
+
+    // Mat avg;
+
+    cv::reduce(this->memberInvariants,this->meanInvariant,1,CV_REDUCE_AVG);
 
 
 

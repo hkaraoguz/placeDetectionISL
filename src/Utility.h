@@ -38,6 +38,24 @@ public:
 
 };
 
+class LearnedPlace
+{
+
+public:
+
+    LearnedPlace();
+    LearnedPlace(int id);
+    uint id;
+    // This is a Mx1 vector that will store merged place ids
+    cv::Mat memberPlaces;
+    // This will be MXN matrix instead of Mx1 because multiple places can be merged in one learned place
+    cv::Mat memberIds;
+   // std::vector <std::vector<BasePoint> > members;
+    Mat memberInvariants;
+    Mat meanInvariant;
+    void calculateMeanInvariant();
+
+};
 
 
 class TemporalWindow
@@ -110,6 +128,15 @@ private:
 
 
 };
+
+class TopologicalMap
+{
+public:
+
+    std::vector< std::pair<int,int> > connections;
+
+};
+
 
 
 #endif // UTILITY_H

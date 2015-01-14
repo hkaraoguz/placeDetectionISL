@@ -20,6 +20,8 @@
 class Place;
 class TemporalWindow;
 class BasePoint;
+class LearnedPlace;
+//class TopologicalMap;
 
 class DatabaseManager : public QObject
 {
@@ -29,6 +31,9 @@ public:
   //  ~DatabaseManager();
 
     bool openDB(QString filePath);
+
+    // For accessing multiple databases
+    bool openDB(QString filePath, QString connectionName);
 
     void closeDB();
 
@@ -55,12 +60,17 @@ public:
 
     bool insertBasePoint(const BasePoint& basepoint);
 
-
-
-
     bool insertPlace(const Place& place);
 
-   cv::Mat getPlaceMeanInvariant(int id);
+    bool insertLearnedPlace(const LearnedPlace& learnedplace);
+
+    LearnedPlace getLearnedPlace(int id);
+
+    bool insertTopologicalMapRelation(int id, std::pair<int,int> relation);
+
+  //  TopologicalMap getTopologicalMap(int id);
+
+    cv::Mat getPlaceMeanInvariant(int id);
 
     Place getPlace(int id);
 

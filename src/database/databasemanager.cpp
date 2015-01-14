@@ -1,5 +1,6 @@
 #include "databasemanager.h"
 #include "Utility.h"
+//#include <createBDSTISL/src/bdst.h>
 #include <QtSql/QSqlQuery>
 #include <QtSql/QSqlRecord>
 #include <QVariant>
@@ -16,6 +17,29 @@ static QVector<int> placeLabels;
 DatabaseManager::DatabaseManager(QObject *parent) :
     QObject(parent)
 {
+}
+bool DatabaseManager::openDB(QString filePath, QString connectionName)
+{
+    // Find QSLite driver
+    db = QSqlDatabase::addDatabase("QSQLITE",connectionName);
+
+    #ifdef Q_OS_LINUX
+    // NOTE: We have to store database file into user home folder in Linux
+    //QString path(QDir::home().path());
+
+    //path.append(QDir::separator()).append("Development").append(QDir::separator()).append("ISL").append(QDir::separator()).append("Datasets").append(QDir::separator()).append("ImageClef2012").append(QDir::separator()).append("bubble.bubbledb");
+    QString path = QDir::toNativeSeparators(filePath);
+
+    db.setDatabaseName(path);
+    //Development/ISL/Datasets/ImageClef2012
+    #else
+    // NOTE: File exists in the application private folder, in Symbian Qt implementation
+    //  bubbledb.setDatabaseName("my.bubbledb.sqlite");
+    #endif
+
+    // Open databasee
+    return db.open();
+
 }
 bool DatabaseManager::openDB(QString filePath)
 {
@@ -85,6 +109,8 @@ bool DatabaseManager::isOpen()
 void DatabaseManager::closeDB()
 {
     if(db.isOpen()) db.close();
+
+
 }
 
 bool DatabaseManager::deleteDB()
@@ -514,6 +540,103 @@ bool DatabaseManager::insertTemporalWindow(const TemporalWindow &twindow)
     }
 
     return false;
+
+}
+bool DatabaseManager::insertTopologicalMapRelation(int id, std::pair<int,int> relation)
+{
+    if(db.isOpen())
+    {
+         QSqlQuery query(QSqlDatabase::database("knowledge"));
+
+         query.prepare(QString("replace into topologicalmap values(?, ?, ?)"));
+
+         query.addBindValue(id);
+         query.addBindValue(relation.first);
+         query.addBindValue(relation.second);
+
+        bool ret = query.exec();
+
+        return ret;
+
+    }
+
+    return false;
+
+}
+
+bool DatabaseManager::insertLearnedPlace(const LearnedPlace &learnedplace)
+{
+
+    QByteArray arr= mat2ByteArray(learnedplace.memberPlaces);
+
+    QByteArray arr2 = mat2ByteArray(learnedplace.memberIds);
+
+    QByteArray arr3 = mat2ByteArray(learnedplace.meanInvariant);
+
+    QByteArray arr4 = mat2ByteArray(learnedplace.memberInvariants);
+
+
+    if(db.isOpen())
+    {
+
+        QSqlQuery query(QSqlDatabase::database("knowledge"));
+
+         query.prepare(QString("replace into learnedplace values(?, ?, ?, ?, ?)"));
+
+         query.addBindValue(learnedplace.id);
+         query.addBindValue(arr);
+         query.addBindValue(arr2);
+         query.addBindValue(arr3);
+         query.addBindValue(arr4);
+
+        bool ret = query.exec();
+
+        return ret;
+
+    }
+
+    return false;
+
+}
+
+LearnedPlace DatabaseManager::getLearnedPlace(int id)
+{
+    LearnedPlace place;
+
+    if(db.isOpen())
+    {
+        QSqlQuery query(QString("select* from learnedplace where id = %1").arg(id), QSqlDatabase::database("knowledge"));
+
+        query.next();
+
+        int id = query.value(0).toInt();
+
+        // id;
+        qDebug()<<"Learned Place id"<<id;
+        QByteArray array = query.value(1).toByteArray();
+        place.memberPlaces = DatabaseManager::byteArray2Mat(array);
+
+        QByteArray array2 = query.value(2).toByteArray();
+        place.memberIds = DatabaseManager::byteArray2Mat(array2);
+
+        QByteArray array3 = query.value(3).toByteArray();
+        place.meanInvariant = DatabaseManager::byteArray2Mat(array3);
+
+        QByteArray array4 = query.value(4).toByteArray();
+        place.memberInvariants = DatabaseManager::byteArray2Mat(array4);
+
+        //qDebug()<<meanInv.rows<<members.rows;
+
+        place.id = id;
+
+
+      //  QByteArray array = query.value(0).toByteArray();
+
+       // return byteArray2Mat(array);
+    }
+
+
+    return place;
 
 }
 

@@ -12,6 +12,7 @@
         <param name="focal_length_pixels" type="int" value="550" />
         <param name="tau_val_mean" type="double" value="0.15" />
         <param name="tau_val_var" type="double" value="0.003" />
+	
 </node>
 
 

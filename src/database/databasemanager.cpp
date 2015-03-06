@@ -23,7 +23,7 @@ bool DatabaseManager::openDB(QString filePath, QString connectionName)
     // Find QSLite driver
     db = QSqlDatabase::addDatabase("QSQLITE",connectionName);
 
-    #ifdef Q_OS_LINUX
+#ifdef Q_OS_LINUX
     // NOTE: We have to store database file into user home folder in Linux
     //QString path(QDir::home().path());
 
@@ -32,10 +32,10 @@ bool DatabaseManager::openDB(QString filePath, QString connectionName)
 
     db.setDatabaseName(path);
     //Development/ISL/Datasets/ImageClef2012
-    #else
+#else
     // NOTE: File exists in the application private folder, in Symbian Qt implementation
     //  bubbledb.setDatabaseName("my.bubbledb.sqlite");
-    #endif
+#endif
 
     // Open databasee
     return db.open();
@@ -46,30 +46,6 @@ bool DatabaseManager::openDB(QString filePath)
     if(!db.isOpen())
     {
         // Find QSLite driver
-        db = QSqlDatabase::addDatabase("QSQLITE");
-
-        #ifdef Q_OS_LINUX
-        // NOTE: We have to store database file into user home folder in Linux
-        //QString path(QDir::home().path());
-
-        //path.append(QDir::separator()).append("Development").append(QDir::separator()).append("ISL").append(QDir::separator()).append("Datasets").append(QDir::separator()).append("ImageClef2012").append(QDir::separator()).append("bubble.bubbledb");
-        QString path = QDir::toNativeSeparators(filePath);
-
-        db.setDatabaseName(path);
-        //Development/ISL/Datasets/ImageClef2012
-        #else
-        // NOTE: File exists in the application private folder, in Symbian Qt implementation
-        //  bubbledb.setDatabaseName("my.bubbledb.sqlite");
-        #endif
-
-        // Open databasee
-        return db.open();
-    }
-
-        db.close();
-
-        db.removeDatabase("QSQLITE");
-
         db = QSqlDatabase::addDatabase("QSQLITE");
 
 #ifdef Q_OS_LINUX
@@ -84,6 +60,30 @@ bool DatabaseManager::openDB(QString filePath)
 #else
         // NOTE: File exists in the application private folder, in Symbian Qt implementation
         //  bubbledb.setDatabaseName("my.bubbledb.sqlite");
+#endif
+
+        // Open databasee
+        return db.open();
+    }
+
+    db.close();
+
+    db.removeDatabase("QSQLITE");
+
+    db = QSqlDatabase::addDatabase("QSQLITE");
+
+#ifdef Q_OS_LINUX
+    // NOTE: We have to store database file into user home folder in Linux
+    //QString path(QDir::home().path());
+
+    //path.append(QDir::separator()).append("Development").append(QDir::separator()).append("ISL").append(QDir::separator()).append("Datasets").append(QDir::separator()).append("ImageClef2012").append(QDir::separator()).append("bubble.bubbledb");
+    QString path = QDir::toNativeSeparators(filePath);
+
+    db.setDatabaseName(path);
+    //Development/ISL/Datasets/ImageClef2012
+#else
+    // NOTE: File exists in the application private folder, in Symbian Qt implementation
+    //  bubbledb.setDatabaseName("my.bubbledb.sqlite");
 #endif
 
 
@@ -208,86 +208,86 @@ std::vector<bubblePoint> DatabaseManager::readBubble(int type, int number)
 bool DatabaseManager::insertBubble(int type, int number, std::vector<bubblePoint> bubble)
 {
 
-   // bool ret = false;
+    // bool ret = false;
 
     if (db.isOpen())
     {
 
         QSqlQuery query;
 
-          //  query.exec("PRAGMA journal_mode = MEMORY");
-         //  query.exec("PRAGMA synchronous = OFF");
-            query.prepare(QString("replace into bubble values( ?, ?, ?, ?, ?, ?)"));
+        //  query.exec("PRAGMA journal_mode = MEMORY");
+        //  query.exec("PRAGMA synchronous = OFF");
+        query.prepare(QString("replace into bubble values( ?, ?, ?, ?, ?, ?)"));
 
-                          //    query.prepare(QString("insert into bubble values( :type, :number, :pan, :tilt, :val) ON DUPLICATE KEY update val = :val)"));
+        //    query.prepare(QString("insert into bubble values( :type, :number, :pan, :tilt, :val) ON DUPLICATE KEY update val = :val)"));
 
-                          //    updateQuery.prepare("update bubble set val = :val where type = %type and number = %2 and pan = %3 and tilt = %4");
-            QVariantList typee;
-            QVariantList numberr;
-            QVariantList placeLabel;
-            QVariantList pan;
-            QVariantList tilt;
-            QVariantList val;
+        //    updateQuery.prepare("update bubble set val = :val where type = %type and number = %2 and pan = %3 and tilt = %4");
+        QVariantList typee;
+        QVariantList numberr;
+        QVariantList placeLabel;
+        QVariantList pan;
+        QVariantList tilt;
+        QVariantList val;
 
-            db.transaction();
+        db.transaction();
 
-            // Insert new bubble
-            for(uint i = 0; i < bubble.size(); i++)
+        // Insert new bubble
+        for(uint i = 0; i < bubble.size(); i++)
+        {
+
+            bubblePoint pt;
+
+            pt = bubble.at(i);
+
+            typee<<type;
+            numberr<<number;
+            pan<<pt.panAng;
+            tilt<<pt.tiltAng;
+            val<<pt.val;
+
+            if(placeLabels.size() >= number)
             {
+                placeLabel<<placeLabels.at(number-1);
+            }
 
-                bubblePoint pt;
-
-                pt = bubble.at(i);
-
-                typee<<type;
-                numberr<<number;
-                pan<<pt.panAng;
-                tilt<<pt.tiltAng;
-                val<<pt.val;
-
-                if(placeLabels.size() >= number)
-                {
-                    placeLabel<<placeLabels.at(number-1);
-                }
-
-                else
-                    placeLabel<<-1;
+            else
+                placeLabel<<-1;
 
 
-          /*      query.bindValue(":type",type);
+            /*      query.bindValue(":type",type);
                  query.bindValue(":number",number);
                   query.bindValue(":pan",pt.panAng);
                    query.bindValue(":tilt",pt.tiltAng);
                    query.bindValue(":val",pt.val);*/
-                 //  query.exec();
+            //  query.exec();
 
-                //query.exec(QString("insert into bubble values('%1', '%2', '%3', '%4', %5)").arg(type).arg(number).arg(pt.panAng).arg(pt.tiltAng).arg(pt.val));
+            //query.exec(QString("insert into bubble values('%1', '%2', '%3', '%4', %5)").arg(type).arg(number).arg(pt.panAng).arg(pt.tiltAng).arg(pt.val));
 
-
-            }
-
-
-
-            query.addBindValue(typee);
-            query.addBindValue(numberr);
-            query.addBindValue(placeLabel);
-            query.addBindValue(pan);
-            query.addBindValue(tilt);
-            query.addBindValue(val);
-
-
-            if (!query.execBatch())
-                 qDebug() << query.lastError();
-
-            db.commit();
-
-            return true;
 
         }
 
 
 
-        return false;
+        query.addBindValue(typee);
+        query.addBindValue(numberr);
+        query.addBindValue(placeLabel);
+        query.addBindValue(pan);
+        query.addBindValue(tilt);
+        query.addBindValue(val);
+
+
+        if (!query.execBatch())
+            qDebug() << query.lastError();
+
+        db.commit();
+
+        return true;
+
+    }
+
+
+
+    return false;
 
 
 
@@ -303,7 +303,7 @@ bool DatabaseManager::insertInvariants(int type, int number, std::vector< std::v
         QSqlQuery query;
 
         // First check, if a bubble has already entered to the table
-    /*    bool exists = query.exec(QString("select * from invariant where type = %1 and number = %2").arg(type).arg(number));
+        /*    bool exists = query.exec(QString("select * from invariant where type = %1 and number = %2").arg(type).arg(number));
 
         // If query is successfully executed
         if(exists)
@@ -320,97 +320,97 @@ bool DatabaseManager::insertInvariants(int type, int number, std::vector< std::v
 
             }
 */
-            //else return false;
+        //else return false;
 
-            // Speed up the multiple-row insertion by using transactions
-            //query.exec(QString("BEGIN TRANSACTION"));
+        // Speed up the multiple-row insertion by using transactions
+        //query.exec(QString("BEGIN TRANSACTION"));
 
-            query.prepare(QString("replace into invariant values(?, ?, ?, ?)"));
+        query.prepare(QString("replace into invariant values(?, ?, ?, ?)"));
 
-            QVariantList typee;
-            QVariantList numberr;
-            QVariantList placeLabel;
-            QVariantList val;
-
-
-            db.transaction();
-
-            // Insert new bubble
-            for(uint i = 0; i <invariants.size(); i++)
-            {
-                for(uint j = 0; j < invariants[i].size();j++){
+        QVariantList typee;
+        QVariantList numberr;
+        QVariantList placeLabel;
+        QVariantList val;
 
 
-                    val<< invariants[i][j];
-                    typee<<type;
-                    numberr<<number;
+        db.transaction();
 
-                    if(placeLabels.size() >= number)
-                    {
-                        placeLabel<<placeLabels.at(number-1);
-                    }
-
-                    else
-                        placeLabel<<-1;
+        // Insert new bubble
+        for(uint i = 0; i <invariants.size(); i++)
+        {
+            for(uint j = 0; j < invariants[i].size();j++){
 
 
-                    //query.exec(QString("replace into invariant values('%1', '%2', '%3')").arg(type).arg(number).arg(val));
+                val<< invariants[i][j];
+                typee<<type;
+                numberr<<number;
 
-
+                if(placeLabels.size() >= number)
+                {
+                    placeLabel<<placeLabels.at(number-1);
                 }
+
+                else
+                    placeLabel<<-1;
+
+
+                //query.exec(QString("replace into invariant values('%1', '%2', '%3')").arg(type).arg(number).arg(val));
+
+
             }
-
-            query.addBindValue(typee);
-            query.addBindValue(numberr);
-            query.addBindValue(placeLabel);
-            query.addBindValue(val);
-
-           // query.exec(QString("COMMIT TRANSACTION"));
-
-            if (!query.execBatch())
-                 qDebug() << query.lastError();
-            db.commit();
-
-            return true;
-
         }
 
+        query.addBindValue(typee);
+        query.addBindValue(numberr);
+        query.addBindValue(placeLabel);
+        query.addBindValue(val);
+
+        // query.exec(QString("COMMIT TRANSACTION"));
+
+        if (!query.execBatch())
+            qDebug() << query.lastError();
+        db.commit();
+
+        return true;
+
+    }
 
 
-  //  }
+
+    //  }
 
     return false;
 
 }
 void DatabaseManager::determinePlaceLabels(QString filePath)
 {
-     QStringList list;
+    QStringList list;
 
-     QFile file(filePath);
+    QFile file(filePath);
 
-     if(!file.open(QFile::ReadOnly))
-     {
+    if(!file.open(QFile::ReadOnly))
+    {
 
         return;
-     }
-     QTextStream* stream = new QTextStream(&file);
+    }
+    QTextStream* stream = new QTextStream(&file);
 
-     QString st = stream->readLine();
+    QString st = stream->readLine();
 
-     QStringList mainList;
+    QStringList mainList;
 
-     while(st != NULL)
-     {
-         st.replace(" ","");
+    while(st != NULL)
+    {
+        st.replace(" ","");
 
-         list =  st.split(":",QString::SkipEmptyParts);
+        list =  st.split(":",QString::SkipEmptyParts);
 
-         mainList.push_back(list.at(1));
+        mainList.push_back(list.at(1));
 
-         st = stream->readLine();
-     }
+        st = stream->readLine();
+    }
 
-     file.close();
+    file.close();
 
     QMap<QString, int> valueMap;
 
@@ -420,22 +420,22 @@ void DatabaseManager::determinePlaceLabels(QString filePath)
     int labelCounter = -1;
     foreach (QString str, mainList)
     {
-       // QStringList line = str.split(";",QString::SkipEmptyParts);
-      //  QString key = line.at(1);
+        // QStringList line = str.split(";",QString::SkipEmptyParts);
+        //  QString key = line.at(1);
 
         QString key = str;
-       // int val = line.at(0).toInt();
+        // int val = line.at(0).toInt();
         if(!valueMap.contains(key))
         {
-          labelCounter++;
-          valueMap.insert(key,labelCounter);
+            labelCounter++;
+            valueMap.insert(key,labelCounter);
         }
         else
         {
-           //valueMap.insert(frameCounter,labelCounter);
+            //valueMap.insert(frameCounter,labelCounter);
         }
 
-      //  counter++;
+        //  counter++;
 
     }
     QStringList listt = valueMap.keys();
@@ -450,7 +450,7 @@ void DatabaseManager::determinePlaceLabels(QString filePath)
     }
     int counter = 0;
 
-   // QVector<int> labels;
+    // QVector<int> labels;
 
     if(placeLabels.size() > 0)placeLabels.clear();
 
@@ -465,8 +465,8 @@ void DatabaseManager::determinePlaceLabels(QString filePath)
         count++;
     }
 
-   // qDebug()<<valueMap;
-  //  qDebug()<<placeLabels.at(990);
+    // qDebug()<<valueMap;
+    //  qDebug()<<placeLabels.at(990);
 }
 bool DatabaseManager::insertBubbleStatistics(int type, int number, bubbleStatistics stats)
 {
@@ -481,7 +481,7 @@ bool DatabaseManager::insertBubbleStatistics(int type, int number, bubbleStatist
         if(placeLabels.size() >= number)
             placeLabel = placeLabels.at(number-1);
 
-       bool ret = query.exec(QString("insert into bubblestats values(%1, %2, %3, %4, %5, %6)").arg(type).arg(number).arg(placeLabel).arg(stats.mean).arg(stats.variance).arg(stats.maxDist));
+        bool ret = query.exec(QString("insert into bubblestats values(%1, %2, %3, %4, %5, %6)").arg(type).arg(number).arg(placeLabel).arg(stats.mean).arg(stats.variance).arg(stats.maxDist));
 
 
         return ret;
@@ -498,21 +498,80 @@ bool DatabaseManager::insertBasePoint(const BasePoint &basepoint)
     {
         QSqlQuery query;
 
-         query.prepare(QString("replace into basepoint values(?, ?, ?, ?, ?, ?, ?)"));
+        query.prepare(QString("replace into basepoint values(?, ?, ?, ?, ?, ?, ?)"));
 
-         query.addBindValue(basepoint.id);
-         query.addBindValue(basepoint.avgVal);
-         query.addBindValue(basepoint.varVal);
-         query.addBindValue(basepoint.avgLas);
-         query.addBindValue(basepoint.varLas);
-         query.addBindValue(arr);
-         query.addBindValue(basepoint.status);
+        query.addBindValue(basepoint.id);
+        query.addBindValue(basepoint.avgVal);
+        query.addBindValue(basepoint.varVal);
+        query.addBindValue(basepoint.avgLas);
+        query.addBindValue(basepoint.varLas);
+        query.addBindValue(arr);
+        query.addBindValue(basepoint.status);
 
         bool ret = query.exec();
 
         return ret;
 
     }
+
+    return false;
+
+}
+bool DatabaseManager::insertBasePoints(const std::vector<BasePoint> basepoints)
+{
+
+    if(db.isOpen())
+    {
+        QSqlQuery query;
+
+        query.prepare(QString("replace into basepoint values(?, ?, ?, ?, ?, ?, ?)"));
+
+        QVariantList ids;
+        QVariantList avgVals;
+        QVariantList varVals;
+        QVariantList avgLass;
+        QVariantList varLass;
+        QVariantList arrs;
+        QVariantList statuses;
+
+        db.transaction();
+
+        for(int i = 0; i < basepoints.size(); i++)
+        {
+            QByteArray arr = mat2ByteArray(basepoints[i].invariants);
+
+
+
+            ids<<basepoints[i].id;
+            avgVals<<basepoints[i].avgVal;
+            varVals<<basepoints[i].varVal;
+            avgLass<<basepoints[i].avgLas;
+            varLass<<basepoints[i].varLas;
+            arrs<<arr;
+            statuses<<basepoints[i].status;
+
+        }
+
+        query.addBindValue(ids);
+        query.addBindValue(avgVals);
+        query.addBindValue(varVals);
+        query.addBindValue(avgLass);
+        query.addBindValue(varLass);
+        query.addBindValue(arrs);
+        query.addBindValue(statuses);
+
+        if (!query.execBatch()){
+
+            qDebug() << query.lastError();
+
+            return false;
+        }
+        db.commit();
+
+        return true;
+
+    }
+
 
     return false;
 
@@ -525,11 +584,11 @@ bool DatabaseManager::insertTemporalWindow(const TemporalWindow &twindow)
     {
         QSqlQuery query;
 
-         query.prepare(QString("replace into temporalwindow values(?, ?, ?)"));
+        query.prepare(QString("replace into temporalwindow values(?, ?, ?)"));
 
-         query.addBindValue(twindow.id);
-         query.addBindValue(twindow.startPoint);
-         query.addBindValue(twindow.endPoint);
+        query.addBindValue(twindow.id);
+        query.addBindValue(twindow.startPoint);
+        query.addBindValue(twindow.endPoint);
 
 
 
@@ -546,13 +605,13 @@ bool DatabaseManager::insertTopologicalMapRelation(int id, std::pair<int,int> re
 {
     if(db.isOpen())
     {
-         QSqlQuery query(QSqlDatabase::database("knowledge"));
+        QSqlQuery query(QSqlDatabase::database("knowledge"));
 
-         query.prepare(QString("replace into topologicalmap values(?, ?, ?)"));
+        query.prepare(QString("replace into topologicalmap values(?, ?, ?)"));
 
-         query.addBindValue(id);
-         query.addBindValue(relation.first);
-         query.addBindValue(relation.second);
+        query.addBindValue(id);
+        query.addBindValue(relation.first);
+        query.addBindValue(relation.second);
 
         bool ret = query.exec();
 
@@ -581,13 +640,46 @@ bool DatabaseManager::insertLearnedPlace(const LearnedPlace &learnedplace)
 
         QSqlQuery query(QSqlDatabase::database("knowledge"));
 
-         query.prepare(QString("replace into learnedplace values(?, ?, ?, ?, ?)"));
+        query.prepare(QString("replace into learnedplace values(?, ?, ?, ?, ?)"));
 
-         query.addBindValue(learnedplace.id);
-         query.addBindValue(arr);
-         query.addBindValue(arr2);
-         query.addBindValue(arr3);
-         query.addBindValue(arr4);
+        query.addBindValue(learnedplace.id);
+        query.addBindValue(arr);
+        query.addBindValue(arr2);
+        query.addBindValue(arr3);
+        query.addBindValue(arr4);
+
+        bool ret = query.exec();
+
+        return ret;
+
+    }
+
+    return false;
+
+}
+bool DatabaseManager::insertBDSTLevel(int id, const Level &aLevel)
+{
+    Mat members(aLevel.members);
+    QByteArray arr= mat2ByteArray(members);
+
+    //  QByteArray arr2 =
+
+    Mat meanInvariant(aLevel.meanInvariant);
+    QByteArray arr2 = mat2ByteArray(meanInvariant);
+
+    if(db.isOpen())
+    {
+
+        QSqlQuery query(QSqlDatabase::database("knowledge"));
+
+        query.prepare(QString("replace into cuetree values(?, ?, ?, ?, ?)"));
+
+        query.addBindValue(id);
+        query.addBindValue(arr);
+        query.addBindValue(aLevel.connectionIndex);
+        query.addBindValue(arr2);
+        query.addBindValue(aLevel.val);
+
 
         bool ret = query.exec();
 
@@ -630,9 +722,9 @@ LearnedPlace DatabaseManager::getLearnedPlace(int id)
         place.id = id;
 
 
-      //  QByteArray array = query.value(0).toByteArray();
+        //  QByteArray array = query.value(0).toByteArray();
 
-       // return byteArray2Mat(array);
+        // return byteArray2Mat(array);
     }
 
 
@@ -652,12 +744,12 @@ bool DatabaseManager::insertPlace(const Place &place)
     {
         QSqlQuery query;
 
-         query.prepare(QString("replace into place values(?, ?, ?, ?)"));
+        query.prepare(QString("replace into place values(?, ?, ?, ?)"));
 
-         query.addBindValue(place.id);
-         query.addBindValue(arr);
-         query.addBindValue(arr2);
-         query.addBindValue(arr3);
+        query.addBindValue(place.id);
+        query.addBindValue(arr);
+        query.addBindValue(arr2);
+        query.addBindValue(arr3);
 
         bool ret = query.exec();
 
@@ -728,9 +820,9 @@ Place DatabaseManager::getPlace(int id)
         place.id = id;
 
 
-      //  QByteArray array = query.value(0).toByteArray();
+        //  QByteArray array = query.value(0).toByteArray();
 
-       // return byteArray2Mat(array);
+        // return byteArray2Mat(array);
     }
 
 

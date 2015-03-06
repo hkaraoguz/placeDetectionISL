@@ -21,6 +21,7 @@ class Place;
 class TemporalWindow;
 class BasePoint;
 class LearnedPlace;
+class Level;
 //class TopologicalMap;
 
 class DatabaseManager : public QObject
@@ -42,7 +43,7 @@ public:
    bool isOpen();
 
     // Type = 55:Lazer, 56:Hue, XX:Filter_Number, Number: the current bubble number-> obtained from frame number
-  bool insertRowtoBubble(int type, int number, bubblePoint row);
+    bool insertRowtoBubble(int type, int number, bubblePoint row);
 
     bool insertRowtoBubble(int type, int number, int pan, int tilt, double val);
 
@@ -60,6 +61,8 @@ public:
 
     bool insertBasePoint(const BasePoint& basepoint);
 
+    bool insertBasePoints(const std::vector<BasePoint> basepoints);
+
     bool insertPlace(const Place& place);
 
     bool insertLearnedPlace(const LearnedPlace& learnedplace);
@@ -67,6 +70,8 @@ public:
     LearnedPlace getLearnedPlace(int id);
 
     bool insertTopologicalMapRelation(int id, std::pair<int,int> relation);
+
+    bool insertBDSTLevel(int id, const Level& aLevel);
 
   //  TopologicalMap getTopologicalMap(int id);
 

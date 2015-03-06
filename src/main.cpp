@@ -13,6 +13,9 @@
 #include <image_transport/subscriber.h>
 #include <QDir>
 #include <QDebug>
+#include <QDateTime>
+#include <std_msgs/Bool.h>
+
 
 namespace enc = sensor_msgs::image_encodings;
 
@@ -24,31 +27,130 @@ double compareHKCHISQR(cv::Mat input1, cv::Mat input2);
 // TODO Temporal Window ve basepointleri DB ye kaydedecegiz
 
 
-/*class UninformativeFrame
+ros::Timer timer;
+PlaceDetector detector;
+
+DatabaseManager dbmanager;
+std::vector<BasePoint> basepoints;
+
+ros::Publisher placedetectionPublisher;
+ros::Publisher filePathPublisher;
+
+bool firsttime = true;
+
+bool sendLastPlaceandShutdown = false;
+
+QString mainDirectoryPath;
+QString imagesPath;
+
+bool createDirectories()
 {
-public:
-    UninformativeFrame();
-    int sat_mean;
-    int sat_var;
-    int frame_no;
+    QDir dir(QDir::home());
+
+    QString mainDirectoryName = QDateTime::currentDateTime().toString("yyyy-MM-dd-hh:mm:ss");
+
+    if(!dir.mkdir(mainDirectoryName)) return false;
+
+    dir.cd(mainDirectoryName);
+
+    mainDirectoryPath = dir.path();
+    qDebug()<<"Main Directory Path"<<mainDirectoryPath;
 
 
-};
-UninformativeFrame*/
-TemporalWindow::TemporalWindow()
-{
-    startPoint = 0;
-    endPoint = 0;
-    tau_w = 0;
-    tau_n = 0;
-    id = -1;
+    QDir mainDir(QDir::homePath().append("/").append(mainDirectoryName));
+
+    QString imageDirectory = "images";
+
+    if(!mainDir.mkdir(imageDirectory)) return false;
+
+    mainDir.cd(imageDirectory);
+
+    imagesPath = mainDir.path();
+
+    qDebug()<<"Image directory path"<<imagesPath;
+
+    QString databasepath = QDir::homePath();
+
+    databasepath.append("/emptydb");
+
+    QString detecplacesdbpath = databasepath;
+    detecplacesdbpath.append("/detected_places.db");
+
+    QFile file(detecplacesdbpath);
+
+    if(file.exists())
+    {
+        QString newdir = mainDirectoryPath;
+        newdir.append("/detected_places.db");
+        QFile::copy(detecplacesdbpath,newdir);
+
+        if(!dbmanager.openDB(newdir))
+            return false;
+        //   file.close();
+    }
+    else
+        return false;
+
+    QString knowledgedbpath = databasepath;
+    knowledgedbpath.append("/knowledge.db");
+
+    QFile file2(knowledgedbpath);
+
+    if(file2.exists())
+    {
+        QString newdir = mainDirectoryPath;
+        QFile::copy(knowledgedbpath,newdir.append("/knowledge.db"));
+        // file.close();
+    }
+    else
+        return false;
+
+
+
+    return true;
 
 }
 
-ros::Timer timer;
-PlaceDetector detector;
-DatabaseManager dbmanager;
-ros::Publisher placedetectionPublisher;
+bool saveParameters(QString filepath)
+{
+    QString fullpath = filepath;
+
+    fullpath.append("/PDparams.txt");
+
+    QFile file(fullpath);
+
+    if(file.open(QFile::WriteOnly))
+    {
+        QTextStream str(&file);
+
+        str<<"tau_w "<<detector.tau_w<<"\n";
+        str<<"tau_n "<<detector.tau_n<<"\n";
+        str<<"tau_p "<<detector.tau_p<<"\n";
+        str<<"tau_inv "<<detector.tau_inv<<"\n";
+        str<<"tau_avgdiff "<<detector.tau_avgdiff<<"\n";
+        str<<"focal_length_pixels "<<detector.focalLengthPixels<<"\n";
+        str<<"tau_val_mean "<<detector.tau_val_mean<<"\n";
+        str<<"tau_val_var "<<detector.tau_val_var<<"\n";
+        str<<"sat_lower "<<detector.tau_avgdiff<<"\n";
+        str<<"sat_upper "<<detector.focalLengthPixels<<"\n";
+        str<<"val_lower "<<detector.tau_val_mean<<"\n";
+        str<<"val_upper "<<detector.tau_val_var<<"\n";
+        str<<"debug_mode "<<detector.debugMode<<"\n";
+        str<<"debug_filePath "<<QString::fromStdString(detector.debugFilePath)<<"\n";
+        str<<"debug_fileNo "<<detector.debugFileNo<<"\n";
+
+        file.close();
+    }
+    else
+    {
+        qDebug()<<"Param File could not be opened for writing!!";
+        return false;
+    }
+
+
+
+    return true;
+}
 
 void timerCallback(const ros::TimerEvent& event)
 {
@@ -64,8 +166,11 @@ void imageCallback(const sensor_msgs::ImageConstPtr& original_image)
 
     if(detector.shouldProcess)
     {
+        Mat imm = cv_bridge::toCvCopy(original_image, enc::BGR8)->image;
+        cv::Rect rect(0,0,imm.cols,(imm.rows/2));
+        detector.currentImage = imm(rect);//cv_bridge::toCvCopy(original_image, enc::BGR8)->image;
 
-        detector.currentImage = cv_bridge::toCvCopy(original_image, enc::BGR8)->image;
+        // detector.shouldProcess = false;
 
 
     }
@@ -75,6 +180,59 @@ void imageCallback(const sensor_msgs::ImageConstPtr& original_image)
     //Add some delay in miliseconds. The function only works if there is at least one HighGUI window created and the window is active. If there are several HighGUI windows, any of them can be active.
     //cv::waitKey(3);
 
+
+}
+void startStopCallback(const std_msgs::Int16 startstopSignal)
+{
+    // Start processing
+    if(startstopSignal.data == 1)
+    {
+        detector.shouldProcess = true;
+
+        if(firsttime)
+        {
+            firsttime = false;
+
+            if(createDirectories())
+            {
+                qDebug()<<"Directories have been created successfully!!";
+
+                std_msgs::String sstr;
+
+                sstr.data = mainDirectoryPath.toStdString();
+
+                std::cout<<"Ssstr data: "<<sstr.data<<std::endl;
+
+                saveParameters(mainDirectoryPath);
+
+                filePathPublisher.publish(sstr);
+            }
+            else
+            {
+                qDebug()<<"Error!! Necessary directories could not be created!! Detector will not work!!";
+
+                detector.shouldProcess = false;
+                //  return -1;
+            }
+
+
+        }
+
+    }
+    // Stop the node
+    else if(startstopSignal.data == -1)
+    {
+        sendLastPlaceandShutdown = true;
+
+        //   ros::shutdown();
+
+
+    }
+    // Pause the node
+    else if(startstopSignal.data == 0)
+    {
+        detector.shouldProcess = false;
+    }
 
 }
 
@@ -97,7 +255,7 @@ double compareHKCHISQR(Mat input1, Mat input2)
 
         double ss =  in1+in2;
         summ += mul/ss;
-     //   qDebug()<<i<<mul<<ss<<summ;
+        //   qDebug()<<i<<mul<<ss<<summ;
 
     }
 
@@ -138,6 +296,7 @@ int main (int argc, char** argv)
     detector.tau_w = 1;
     detector.tau_n = 1;
     detector.tau_p = 20;
+    detector.tau_avgdiff = 0.45;
     std::string camera_topic = "";
     int img_width = 640;
     int img_height = 480;
@@ -150,7 +309,9 @@ int main (int argc, char** argv)
 
     detector.noHarmonics = 10;
     detector.image_counter = 1;
-    detector.shouldProcess = true;
+
+    detector.shouldProcess = false;
+    detector.debugMode = false;
 
     std_msgs::String filterPath;
 
@@ -159,16 +320,52 @@ int main (int argc, char** argv)
     pnh.getParam("tau_n",detector.tau_n);
     pnh.getParam("tau_p",detector.tau_p);
     pnh.getParam("tau_inv",detector.tau_inv);
+    pnh.getParam("tau_avgdiff",detector.tau_avgdiff);
     pnh.getParam("camera_topic",camera_topic);
     pnh.getParam("image_width",img_width);
     pnh.getParam("image_height",img_height);
     pnh.getParam("focal_length_pixels",detector.focalLengthPixels);
     pnh.getParam("tau_val_mean",detector.tau_val_mean);
     pnh.getParam("tau_val_var",detector.tau_val_var);
+    pnh.getParam("sat_lower",detector.satLower);
+    pnh.getParam("sat_upper",detector.satUpper);
+    pnh.getParam("val_lower",detector.valLower);
+    pnh.getParam("val_upper",detector.valUpper);
+
+
+    /***** GET THE DEBUG MODE ****************/
+    // std_msgs::Bool debug;
+
+    //  debug.data = false;
+
+    pnh.getParam("debug_mode",detector.debugMode);
+
+    //  detector.debugMode = debug.data;
+    /*******************************************/
+
+    /*************GET DEBUG FILE PATH ************************/
+    std_msgs::String file_path;
+
+    pnh.getParam("file_path", detector.debugFilePath);
+
+    //detector.debugFilePath = file_path.data;
+
+    /******************************************/
+
+    /*** Get the number of files that will be processed**/
+    pnh.getParam("file_number",detector.debugFileNo);
+    /***********************************************************/
+    qDebug()<<"Saturation and Value thresholds"<<detector.satLower<<detector.satUpper<<detector.valLower<<detector.valUpper<<detector.tau_avgdiff;
+
+    if(detector.debugMode)
+    {
+        qDebug()<<"Debug mode is on!! File Path"<<QString::fromStdString(detector.debugFilePath)<<"No of files to be processed"<<detector.debugFileNo;
+    }
+
     //pnh.getParam("filter_path",filterPath.data);
 
 
-    dbmanager.openDB("/home/hakan/Development/ISL/Datasets/Own/deneme/db1.db");
+    // dbmanager.openDB("/home/hakan/Development/ISL/Datasets/Own/deneme/db1.db");
 
     /*Place place = DatabaseManager::getPlace(1);
 
@@ -181,7 +378,7 @@ int main (int argc, char** argv)
     QString basepath = QDir::homePath();
     basepath.append("/visual_filters");
 
-   // QString basepath(filterPath.data.data());
+    // QString basepath(filterPath.data.data());
 
     QString path(basepath);
 
@@ -225,10 +422,13 @@ int main (int argc, char** argv)
 
     ImageProcess::readFilter(path,29,false,false,false);
 
-
     image_transport::Subscriber imageSub = it.subscribe(camera_topic.data(), 1, imageCallback,hints);
 
+    ros::Subscriber sssub = nh.subscribe("placeDetectionISL/nodecontrol",1, startStopCallback);
+
     placedetectionPublisher = nh.advertise<std_msgs::Int16>("placeDetectionISL/placeID",5);
+
+    filePathPublisher = nh.advertise<std_msgs::String>("placeDetectionISL/mainFilePath",2);
 
 
     //  timer = nh.createTimer(ros::Duration(0.25), timerCallback);
@@ -254,116 +454,175 @@ int main (int argc, char** argv)
 
     ros::Rate loop(50);
 
-
-    for(int i = 1; i <= 3200; i++)
+    while(ros::ok())
     {
-
-        QString path("/home/hakan/Development/ISL/Datasets/Own/jaguar/tour1/");
-
-        path.append("rgb_").append(QString::number(i)).append(".jpg");
-
-        detector.currentImage = imread(path.toStdString().data(),CV_LOAD_IMAGE_COLOR);
-        detector.shouldProcess = true;
-        detector.processImage();
-
         ros::spinOnce();
 
         loop.sleep();
 
-
-
-    }
-
-  //  qDebug()<<"New Place";
-    detector.currentPlace->calculateMeanInvariant();
-
-    // qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
-
-    if(detector.currentPlace->memberIds.rows >= detector.tau_p){
-
-        dbmanager.insertPlace(*detector.currentPlace);
-
-        detector.detectedPlaces.push_back(*detector.currentPlace);
-
-        std_msgs::Int16 plID;
-        plID.data = detector.placeID;
-
-        placedetectionPublisher.publish(plID);
-
-
-        detector.placeID++;
-    }
-
-
-    delete detector.currentPlace;
-    detector.currentPlace = 0;
-
-
-
-
-
-
-    //timer.start();
-
-   /* while(ros::ok())
-    {
-
-
-        ros::spinOnce();
-
-        loop.sleep();
-
-
-
-        for(int i = 951; i <= 952; i++)
+        if(detector.shouldProcess)
         {
+            if(!detector.debugMode)
+            {
+                detector.shouldProcess = false;
+                detector.processImage();
 
-            QString path("/home/hakan/Development/ISL/Datasets/Own/jaguar/tour1/");
+                if(sendLastPlaceandShutdown)
+                {
+                    if(detector.currentPlace && detector.currentPlace->id > 0 && detector.currentPlace->members.size() > 0)
+                    {
 
-            path.append("rgb_").append(QString::number(i)).append(".jpg");
+                        detector.currentPlace->calculateMeanInvariant();
 
-            detector.currentImage = imread(path.toStdString().data(),CV_LOAD_IMAGE_COLOR);
-            detector.shouldProcess = true;
-            detector.processImage();
+                        // qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
+
+                        if(detector.currentPlace->memberIds.rows >= detector.tau_p){
+
+                            dbmanager.insertPlace(*detector.currentPlace);
+
+                            detector.detectedPlaces.push_back(*detector.currentPlace);
+
+                            std_msgs::Int16 plID;
+                            plID.data = detector.placeID;
+
+                            placedetectionPublisher.publish(plID);
+
+                            ros::spinOnce();
+
+                            // loop.sleep();
 
 
-        }
+                            detector.placeID++;
+                        }
 
-      //  qDebug()<<"New Place";
-        detector.currentPlace->calculateMeanInvariant();
+                        delete detector.currentPlace;
+                        detector.currentPlace = 0;
 
-        // qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
+                    }
 
-        if(detector.currentPlace->memberIds.rows >= detector.tau_p){
-            dbmanager.insertPlace(*detector.currentPlace);
-            detector.detectedPlaces.push_back(*detector.currentPlace);
-            detector.placeID++;
-        }
+                    ros::shutdown();
+
+                }
+            }
+            else
+            {
+                QString processingPerImageFilePath = mainDirectoryPath;
+
+                processingPerImageFilePath = processingPerImageFilePath.append("/pperImage.txt");
+
+                QFile file(processingPerImageFilePath);
+
+                QTextStream strm;
+
+                if(file.open(QFile::WriteOnly))
+                {
+                    qDebug()<<"Processing per Image file Path has been opened";
+                    strm.setDevice(&file);
+
+                }
+                // FOR DEBUGGING
+                for(int i = 1; i <= detector.debugFileNo; i++)
+                {
+
+                    // QString path("/home/hakan/fromJaguars/downloadedItems/jaguarY/2015-01-30-15:39:47/images/");
+                    QString path = QString::fromStdString(detector.debugFilePath);
+
+                    path.append("rgb_").append(QString::number(i)).append(".jpg");
+
+                    Mat imm = imread(path.toStdString().data(),CV_LOAD_IMAGE_COLOR);
+
+                    qint64 starttime = QDateTime::currentMSecsSinceEpoch();
+
+                    cv::Rect rect(0,0,imm.cols,(imm.rows/2));
+
+                    detector.currentImage = imm(rect);
+
+                    detector.processImage();
+
+                    qint64 stoptime = QDateTime::currentMSecsSinceEpoch();
+
+                    qDebug()<<(float)(stoptime-starttime);
+
+                    if(strm.device() != NULL)
+                        strm<<(float)(stoptime-starttime)<<"\n";
+
+                    ros::spinOnce();
+
+                    loop.sleep();
+
+                    if(!ros::ok())
+                        break;
+
+                    // qDebug()<<i;
+                }
 
 
+                if(detector.currentPlace && detector.currentPlace->id > 0 && detector.currentPlace->members.size() > 0)
+                {
+                    qDebug()<<"I am here";
+
+                    detector.currentPlace->calculateMeanInvariant();
+
+                    qDebug()<<"Current place mean invariant: "<<detector.currentPlace->meanInvariant.rows<<detector.currentPlace->meanInvariant.cols<<detector.currentPlace->members.size();
+
+                    if(detector.currentPlace->memberIds.rows >= detector.tau_p)
+                    {
+
+                        dbmanager.insertPlace(*detector.currentPlace);
+
+                        detector.detectedPlaces.push_back(*detector.currentPlace);
+
+                        std_msgs::Int16 plID;
+                        plID.data = detector.placeID;
+
+                        placedetectionPublisher.publish(plID);
+
+                        ros::spinOnce();
+
+                        // loop.sleep();
+
+
+                        detector.placeID++;
+                    }
+
+                    delete detector.currentPlace;
+                    detector.currentPlace = 0;
+                    detector.shouldProcess = false;
+                    ros::shutdown();
+
+
+                } // end if detector.currentPlace
+
+                file.close();
+
+            } // end else
+
+
+        } // end if detector.should Process
+
+        //  qDebug()<<"New Place";
+
+
+
+
+    } //  while(ros::ok())
+
+
+    /// Delete the current place
+    if(detector.currentPlace)
+    {
         delete detector.currentPlace;
         detector.currentPlace = 0;
+    }
 
-        ros::shutdown();
+    /// Insert basepoints to the database
+    if(detector.wholebasepoints.size()>0)
+        dbmanager.insertBasePoints(detector.wholebasepoints);
 
-        /*  if(detector.shouldProcess)
-        {
-            detector.shouldProcess = false;
-            //     qDebug()<<"We are here";
-            detector.processImage();
-
-        }*/
-
-
-
-   // }
-
-
-    //  timer.stop();
 
     dbmanager.closeDB();
 
-    ros::shutdown();
+
     return 0;
 
 }
@@ -388,7 +647,12 @@ void PlaceDetector::processImage()
         //  cv::cvtColor(currentImage,img,CV_BGR2HSV);
 
         Mat hueChannel= ImageProcess::generateChannelImage(currentImage,0,satLower,satUpper,valLower,valUpper);
-        vector<bubblePoint> hueBubble = bubbleProcess::convertGrayImage2Bub(hueChannel,focalLengthPixels,180);
+
+        Mat hueChannelFiltered;
+
+        cv::medianBlur(hueChannel, hueChannelFiltered,3);
+
+        vector<bubblePoint> hueBubble = bubbleProcess::convertGrayImage2Bub(hueChannelFiltered,focalLengthPixels,180);
         vector<bubblePoint> reducedHueBubble = bubbleProcess::reduceBubble(hueBubble);
 
 
@@ -417,9 +681,17 @@ void PlaceDetector::processImage()
         bubbleStatistics statsVal =  bubbleProcess::calculateBubbleStatistics(reducedValBubble,255);
 
         qDebug()<<"Bubble statistics: "<<statsVal.mean<<statsVal.variance;
+
         currentBasePoint.avgVal = statsVal.mean;
         currentBasePoint.varVal = statsVal.variance;
         currentBasePoint.id = image_counter;
+        QString imagefilePath = imagesPath;
+        imagefilePath.append("/rgb_");
+        imagefilePath.append(QString::number(image_counter)).append(".jpg");
+        imwrite(imagefilePath.toStdString().data(),currentImage);
+
+
+        //imwrite()
         currentBasePoint.status = 0;
 
         /*********************** WE CHECK FOR THE UNINFORMATIVENESS OF THE FRAME   *************************/
@@ -430,7 +702,7 @@ void PlaceDetector::processImage()
 
             currentBasePoint.status = 1;
 
-            this->shouldProcess = true;
+            //  this->shouldProcess = true;
 
 
             // If we don't have an initialized window then initialize
@@ -456,12 +728,18 @@ void PlaceDetector::processImage()
             }
 
 
-            dbmanager.insertBasePoint(currentBasePoint);
+            ///  dbmanager.insertBasePoint(currentBasePoint);
+            wholebasepoints.push_back(currentBasePoint);
+
             //  previousBasePoint = currentBasePoint;
 
             image_counter++;
 
-            timer.start();
+            detector.currentImage.release();
+
+            //  timer.start();
+
+            detector.shouldProcess = true;
 
             return;
 
@@ -472,10 +750,12 @@ void PlaceDetector::processImage()
         {
             Mat totalInvariants;
 
+            qint64 start =  QDateTime::currentMSecsSinceEpoch();
+
             DFCoefficients dfcoeff = bubbleProcess::calculateDFCoefficients(reducedHueBubble,noHarmonics,noHarmonics);
             Mat hueInvariants = bubbleProcess::calculateInvariantsMat(dfcoeff,noHarmonics, noHarmonics);
 
-            totalInvariants = hueInvariants.clone();
+            //  totalInvariants = hueInvariants.clone();
 
 
             cv::Mat logTotal;
@@ -498,12 +778,15 @@ void PlaceDetector::processImage()
 
                 Mat invariants=  bubbleProcess::calculateInvariantsMat(dfcoeff,noHarmonics,noHarmonics);
 
-                cv::hconcat(totalInvariants, invariants, totalInvariants);
+                if(j==0)
+                    totalInvariants = invariants.clone();
+                else
+                    cv::hconcat(totalInvariants, invariants, totalInvariants);
 
 
             }
 
-            // TOTAL INVARIANTS 1 X N vector
+
 
             //  qDebug()<<totalInvariants.at<float>(0,64);
 
@@ -511,7 +794,10 @@ void PlaceDetector::processImage()
             logTotal = logTotal/25;
             cv::transpose(logTotal,logTotal);
 
-             // TOTAL INVARIANTS N X 1 vector
+            qint64 stop = QDateTime::currentMSecsSinceEpoch();
+
+            qDebug()<<"Bubble time"<<(stop-start);
+            // TOTAL INVARIANTS N X 1 vector
 
 
             //   qDebug()<<logTotal.rows<<logTotal.cols<<logTotal.at<float>(10,0);
@@ -526,7 +812,9 @@ void PlaceDetector::processImage()
 
                 currentPlace->members.push_back(currentBasePoint);
 
-                dbmanager.insertBasePoint(currentBasePoint);
+
+                /// dbmanager.insertBasePoint(currentBasePoint);
+                wholebasepoints.push_back(currentBasePoint);
 
             }
             else
@@ -535,23 +823,26 @@ void PlaceDetector::processImage()
                 currentBasePoint.id = image_counter;
                 currentBasePoint.invariants = logTotal;
 
-             //   double result = compareHistHK(currentBasePoint.invariants,previousBasePoint.invariants, CV_COMP_CHISQR);
+                //   double result = compareHistHK(currentBasePoint.invariants,previousBasePoint.invariants, CV_COMP_CHISQR);
 
                 // MY VERSION FOR CHISQR, SIMPLER!!
                 double result= compareHKCHISQR(currentBasePoint.invariants,previousBasePoint.invariants);
 
-              //  qDebug()<<"Invariant diff between "<<currentBasePoint.id<<previousBasePoint.id<<"is"<<result<<result2;//previousBasePoint.invariants.rows<<currentBasePoint.invariants.rows;
+                qDebug()<<"Invariant diff between "<<currentBasePoint.id<<previousBasePoint.id<<"is"<<result;
 
-             //   qDebug()<<currentBasePoint.invariants.at<float>(1,0)<<currentBasePoint.invariants.at<float>(2,0)<<previousBasePoint.invariants.at<float>(1,0)<<previousBasePoint.invariants.at<float>(2,0);
+                //  qDebug()<<"Invariant diff between "<<currentBasePoint.id<<previousBasePoint.id<<"is"<<result<<result2;//previousBasePoint.invariants.rows<<currentBasePoint.invariants.rows;
 
-                 // JUST FOR DEBUGGING-> WRITES INVARIANT TO THE HOME FOLDER
-             //   writeInvariant(previousBasePoint.invariants,previousBasePoint.id);
+                //   qDebug()<<currentBasePoint.invariants.at<float>(1,0)<<currentBasePoint.invariants.at<float>(2,0)<<previousBasePoint.invariants.at<float>(1,0)<<previousBasePoint.invariants.at<float>(2,0);
+
+                // JUST FOR DEBUGGING-> WRITES INVARIANT TO THE HOME FOLDER
+                //   writeInvariant(previousBasePoint.invariants,previousBasePoint.id);
 
                 ///////////////////////////// IF THE FRAMES ARE COHERENT ///////////////////////////////////////////////////////////////////////////////////////////////////////
-                if(result <= tau_inv)
+                if(result <= tau_inv && result > 0)
                 {
 
-                    dbmanager.insertBasePoint(currentBasePoint);
+                    ///  dbmanager.insertBasePoint(currentBasePoint);
+                    wholebasepoints.push_back(currentBasePoint);
 
                     /// If we have a temporal window
                     if(tempwin)
@@ -571,8 +862,12 @@ void PlaceDetector::processImage()
                         else
                         {
 
+                            float area = this->tempwin->totalDiff/(tempwin->endPoint - tempwin->startPoint+1);
+
+                            qDebug()<<"Temporal Window Area"<<area;
+
                             // This is a valid temporal window
-                            if(tempwin->endPoint - tempwin->startPoint >= tau_w)
+                            if(tempwin->endPoint - tempwin->startPoint >= tau_w && area>= tau_avgdiff)
                             {
                                 qDebug()<<"New Place";
                                 currentPlace->calculateMeanInvariant();
@@ -580,6 +875,7 @@ void PlaceDetector::processImage()
                                 qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
 
                                 if(currentPlace->memberIds.rows >= tau_p){
+
                                     dbmanager.insertPlace(*currentPlace);
 
                                     std_msgs::Int16 plID;
@@ -670,7 +966,12 @@ void PlaceDetector::processImage()
                 else
                 {
                     currentBasePoint.status = 2;
-                    dbmanager.insertBasePoint(currentBasePoint);
+
+                    ///    dbmanager.insertBasePoint(currentBasePoint);
+                    wholebasepoints.push_back(currentBasePoint);
+
+
+
                     // If we don't have a temporal window create one
                     if(!tempwin)
                     {
@@ -680,7 +981,7 @@ void PlaceDetector::processImage()
                         this->tempwin->startPoint = image_counter;
                         this->tempwin->endPoint = image_counter;
                         this->tempwin->id = twindow_counter;
-
+                        this->tempwin->totalDiff +=result;
                         this->tempwin->members.push_back(currentBasePoint);
 
                     }
@@ -695,27 +996,48 @@ void PlaceDetector::processImage()
 
                             this->tempwin->members.push_back(currentBasePoint);
 
+                            this->tempwin->totalDiff +=result;
+
                             basepointReservoir.clear();
 
 
                         }
                         else
                         {
+                            float avgdiff;
+
+                            avgdiff = this->tempwin->totalDiff/(tempwin->endPoint - tempwin->startPoint+1);
+
+
+                            qDebug()<<"Temporal Window Average Diff"<<avgdiff;
+
                             // This is a valid temporal window
-                            if(tempwin->endPoint - tempwin->startPoint >= tau_w)
+                            if(tempwin->endPoint - tempwin->startPoint >= tau_w && avgdiff >= tau_avgdiff)
                             {
+                                //  float summ = 0;
+                                //Modifikasyon
+                                /* for(int kl = 0; kl < tempwin->members.size(); kl++)
+                                {
+                                    BasePoint abasepoint = tempwin->members.at(kl);
+                                    abasepoint.
+
+                                }*/
+
+
                                 qDebug()<<"New Place";
                                 currentPlace->calculateMeanInvariant();
 
                                 qDebug()<<"Current place mean invariant: "<<currentPlace->meanInvariant.rows<<currentPlace->meanInvariant.cols<<currentPlace->meanInvariant.at<float>(50,0);
 
-                                if(currentPlace->memberIds.rows >= tau_p){
+                                if(currentPlace->memberIds.rows >= tau_p)
+                                {
+
                                     dbmanager.insertPlace(*currentPlace);
 
-                                     std_msgs::Int16 plID ;
-                                     plID.data = this->placeID;
+                                    std_msgs::Int16 plID ;
+                                    plID.data = this->placeID;
 
-                                     placedetectionPublisher.publish(plID);
+                                    placedetectionPublisher.publish(plID);
 
 
                                     this->detectedPlaces.push_back(*currentPlace);
@@ -826,9 +1148,11 @@ void PlaceDetector::processImage()
 
     }
 
+    this->currentImage.release();
+
     this->shouldProcess = true;
 
-    timer.start();
+    //  timer.start();
 
 
 

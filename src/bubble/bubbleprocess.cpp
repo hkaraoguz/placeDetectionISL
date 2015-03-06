@@ -46,7 +46,7 @@ bubbleStatistics bubbleProcess::calculateBubbleStatistics(const vector<bubblePoi
    // cv::Mat bubbleArr(1,bubble.size(),CV_32FC1);
    std::vector<float> values(bubble.size());
 
-   qDebug()<<bubble.size();
+ //  qDebug()<<bubble.size();
 
    for(uint i = 0; i < bubble.size(); i++)
 

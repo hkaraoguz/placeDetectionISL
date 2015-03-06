@@ -133,9 +133,12 @@ std::vector<Mat> ImageProcess::applyFilters(Mat singleChannelImage)
 
         Mat result = Mat::zeros(singleChannelImage.rows,singleChannelImage.cols,CV_8UC1);
 
-        cv::GaussianBlur(copyImage,copyImage,cv::Size(5,5),5,5);
+       // cv::GaussianBlur(copyImage,copyImage,cv::Size(5,5),5,5);
+        Mat blurred;
 
-        cv::filter2D(copyImage,result,result.depth(),filters[i]);
+        cv::medianBlur(copyImage,blurred,3);
+
+        cv::filter2D(blurred,result,result.depth(),filters[i]);
 
         results.push_back(result);
 

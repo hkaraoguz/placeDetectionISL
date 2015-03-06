@@ -70,6 +70,8 @@ public:
     int tau_n;
     std::vector<BasePoint> members;
     std::vector<BasePoint> cohMembers;
+    // Holds the value of total incoherency inside the temporal window
+    float totalDiff;
 
 
 };
@@ -83,10 +85,18 @@ public:
     PlaceDetector();
     PlaceDetector(int tau_w, int tau_n, int tau_p);
     void processImage();
+
     bool shouldProcess;
+    bool isProcessing;
+    bool debugMode;
+
+    std::string debugFilePath;
+    int debugFileNo;
+
     int tau_w;
     int tau_n;
     int tau_p;
+    double tau_avgdiff;
     double tau_inv;
 
     int image_width;
@@ -114,6 +124,9 @@ public:
     vector<Place> detectedPlaces;
     uint placeID;
 
+    std::vector<BasePoint> wholebasepoints;
+
+
 private:
 
     TemporalWindow* tempwin;
@@ -127,6 +140,8 @@ private:
 
 
 
+
+
 };
 
 class TopologicalMap
@@ -134,6 +149,26 @@ class TopologicalMap
 public:
 
     std::vector< std::pair<int,int> > connections;
+
+};
+
+class Level
+{
+
+public:
+
+    Level();
+    ~Level();
+    std::vector<int> members;
+    std::vector<int> parentNodes;
+    double val;
+    //  Connection index bize max parent node numarasini veriyor. Bu node bu noktadan bagli
+    int connectionIndex;
+    // Mean Invariant bize bu level in ortalama invariant vectorunu veriyor
+    std::vector<float> meanInvariant;
+
+
+
 
 };
 

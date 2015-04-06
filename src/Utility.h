@@ -89,7 +89,9 @@ public:
     bool shouldProcess;
     bool isProcessing;
     bool debugMode;
+    bool usePreviousMemory;
 
+    std::string previousMemoryPath;
     std::string debugFilePath;
     int debugFileNo;
 

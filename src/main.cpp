@@ -43,7 +43,7 @@ bool sendLastPlaceandShutdown = false;
 QString mainDirectoryPath;
 QString imagesPath;
 
-bool createDirectories()
+bool createDirectories(QString previousMemoryPath)
 {
     QDir dir(QDir::home());
 
@@ -69,6 +69,7 @@ bool createDirectories()
 
     qDebug()<<"Image directory path"<<imagesPath;
 
+
     QString databasepath = QDir::homePath();
 
     databasepath.append("/emptydb");
@@ -91,21 +92,43 @@ bool createDirectories()
     else
         return false;
 
-    QString knowledgedbpath = databasepath;
-    knowledgedbpath.append("/knowledge.db");
-
-    QFile file2(knowledgedbpath);
-
-    if(file2.exists())
+    // If we don't have a previous memory than create an empty memory
+    if(previousMemoryPath.size() <= 1 || previousMemoryPath.isNull())
     {
-        QString newdir = mainDirectoryPath;
-        QFile::copy(knowledgedbpath,newdir.append("/knowledge.db"));
-        // file.close();
+        QString knowledgedbpath = databasepath;
+        knowledgedbpath.append("/knowledge.db");
+
+        QFile file2(knowledgedbpath);
+
+        if(file2.exists())
+        {
+            QString newdir = mainDirectoryPath;
+            QFile::copy(knowledgedbpath,newdir.append("/knowledge.db"));
+            // file.close();
+        }
+        else
+            return false;
+
     }
+    // If we have supplied a previous memory path, then open that db
     else
-        return false;
+    {
+        QString knowledgedbpath = previousMemoryPath;
+        knowledgedbpath.append("/knowledge.db");
+
+        QFile file2(knowledgedbpath);
+
+        if(file2.exists())
+        {
+            QString newdir = mainDirectoryPath;
+            QFile::copy(knowledgedbpath,newdir.append("/knowledge.db"));
+            // file.close();
+        }
+        else
+            return false;
 
 
+    }
 
     return true;
 
@@ -193,7 +216,17 @@ void startStopCallback(const std_msgs::Int16 startstopSignal)
         {
             firsttime = false;
 
-            if(createDirectories())
+            bool canCreateDir = false;
+
+            if(!detector.usePreviousMemory)
+            {
+                canCreateDir = createDirectories("");
+            }else
+            {
+                canCreateDir = createDirectories(QString::fromStdString(detector.previousMemoryPath));
+            }
+
+            if(canCreateDir)
             {
                 qDebug()<<"Directories have been created successfully!!";
 
@@ -312,6 +345,7 @@ int main (int argc, char** argv)
 
     detector.shouldProcess = false;
     detector.debugMode = false;
+    detector.usePreviousMemory = false;
 
     std_msgs::String filterPath;
 
@@ -334,14 +368,12 @@ int main (int argc, char** argv)
 
 
     /***** GET THE DEBUG MODE ****************/
-    // std_msgs::Bool debug;
-
-    //  debug.data = false;
 
     pnh.getParam("debug_mode",detector.debugMode);
 
-    //  detector.debugMode = debug.data;
+
     /*******************************************/
+
 
     /*************GET DEBUG FILE PATH ************************/
     std_msgs::String file_path;
@@ -361,6 +393,18 @@ int main (int argc, char** argv)
     {
         qDebug()<<"Debug mode is on!! File Path"<<QString::fromStdString(detector.debugFilePath)<<"No of files to be processed"<<detector.debugFileNo;
     }
+
+    /****** GET THE USE PREVIOUS MEMORY PARAM ****/
+
+    pnh.getParam("use_previous_memory",detector.usePreviousMemory);
+
+    if(detector.usePreviousMemory)
+    {
+        pnh.getParam("previous_memory_path", detector.previousMemoryPath);
+    }
+
+    /********************************************/
+
 
     //pnh.getParam("filter_path",filterPath.data);
 
@@ -798,7 +842,11 @@ void PlaceDetector::processImage()
 
             qDebug()<<"Bubble time"<<(stop-start);
             // TOTAL INVARIANTS N X 1 vector
-
+            for(int kk = 0; kk < logTotal.rows; kk++)
+            {
+                if(logTotal.at<float>(kk,0) < 0)
+                    logTotal.at<float>(kk,0) = 0.5;
+            }
 
             //   qDebug()<<logTotal.rows<<logTotal.cols<<logTotal.at<float>(10,0);
 

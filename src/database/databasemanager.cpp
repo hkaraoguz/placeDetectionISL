@@ -622,6 +622,24 @@ bool DatabaseManager::insertTopologicalMapRelation(int id, std::pair<int,int> re
     return false;
 
 }
+int DatabaseManager::getLearnedPlaceMaxID()
+{
+    if(db.isOpen())
+    {
+            QSqlQuery query(QString("select MAX(id) from learnedplace"),QSqlDatabase::database("knowledge"));
+
+           // query.prepare();
+
+           // query.exec();
+
+            query.next();
+
+            return query.value(0).toInt();
+
+
+
+    }
+}
 
 bool DatabaseManager::insertLearnedPlace(const LearnedPlace &learnedplace)
 {

@@ -67,6 +67,8 @@ public:
 
     bool insertLearnedPlace(const LearnedPlace& learnedplace);
 
+    int getLearnedPlaceMaxID();
+
     LearnedPlace getLearnedPlace(int id);
 
     bool insertTopologicalMapRelation(int id, std::pair<int,int> relation);
